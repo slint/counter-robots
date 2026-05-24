@@ -1,11 +1,6 @@
 #!/usr/bin/env sh
-# -*- coding: utf-8 -*-
-#
-# This file is part of COUNTER-Robots.
-# Copyright (C) 2018-2025 CERN.
-#
-# COUNTER-Robots is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
+# SPDX-FileCopyrightText: 2018-2025 CERN.
+# SPDX-License-Identifier: MIT
 
 # Quit on errors
 set -o errexit
