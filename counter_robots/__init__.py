@@ -11,20 +11,40 @@
 
 The classifier is composed from one or more presets and used directly::
 
-    from counter_robots import ClassifierBuilder, counter_preset
+    from counter_robots import ClassifierBuilder, counter_preset, extended_preset
 
-    classifier = ClassifierBuilder().use(counter_preset).build()
+    classifier = ClassifierBuilder().use(counter_preset).use(extended_preset).build()
     classifier.is_robot(user_agent)
 
-The module-level :func:`is_robot`, :func:`is_machine` and
-:func:`is_robot_or_machine` keep working as before, backed by a default classifier
-built from the generic COUNTER preset.
+The module-level :func:`is_robot`, :func:`is_machine`, :func:`is_robot_or_machine`
+and :func:`is_browser` keep working as before, backed by a default classifier built
+from the generic COUNTER preset.
 """
 
 import re
+from functools import lru_cache
 from importlib.resources import files
 
 __version__ = "2026.6"
+
+# User-agent tokens that mark a request as claiming to be an interactive browser.
+_BROWSER_TOKENS = (
+    "Chrome/",
+    "Safari/",
+    "Firefox/",
+    "Gecko/",
+    "Edg/",
+    "OPR/",
+    "AppleWebKit/",
+    "Trident/",
+    "Version/",
+    "Presto/",
+)
+
+# Default size of the in-memory ip -> ASN cache. Bounds memory (each entry is an
+# IP string and an int) while covering the working set of frequently-seen client
+# IPs; override per resolver with the ``cache_size`` argument.
+_ASN_CACHE_SIZE = 100_000
 
 
 #
@@ -37,6 +57,19 @@ def patterns_from(text):
     return [line for line in text.splitlines() if line and not line.startswith("#")]
 
 
+def asns_from(text):
+    """Read ASN numbers from list text (first token per line, ``#`` comments dropped)."""
+    out = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        token = line.split()[0]
+        if token.isdigit():
+            out.add(int(token))
+    return out
+
+
 def _read_package(filename):
     return (files(__package__) / "data" / filename).read_text()
 
@@ -46,10 +79,35 @@ def package_patterns(filename):
     return patterns_from(_read_package(filename))
 
 
+def package_asns(filename):
+    """Read ASN numbers from a file packaged under ``counter_robots/data``."""
+    return asns_from(_read_package(filename))
+
+
 def file_patterns(path):
     """Read regex patterns from an external file."""
     with open(path, encoding="utf-8") as fp:
         return patterns_from(fp.read())
+
+
+def file_asns(path):
+    """Read ASN numbers from an external file."""
+    with open(path, encoding="utf-8") as fp:
+        return asns_from(fp.read())
+
+
+def is_browser(user_agent):
+    """Determine if a user agent claims to be an interactive web browser.
+
+    It does not validate the browser, only whether the request presents itself as
+    one, so it also matches automation faking a browser user agent. Unrecognised
+    clients read as non-browsers.
+    """
+    # Require ``Mozilla/`` and an engine token together, so a bare engine token on
+    # a non-browser client (e.g. a stray ``Version/1.0``) does not match.
+    if not user_agent or "Mozilla/" not in user_agent:
+        return False
+    return any(token in user_agent for token in _BROWSER_TOKENS)
 
 
 #
@@ -80,14 +138,20 @@ class _PatternSet:
 
 
 class Classifier:
-    """Immutable classifier of user agents.
+    """Immutable classifier of user agents and client networks.
 
-    Build one with :class:`ClassifierBuilder`.
+    Build one with :class:`ClassifierBuilder`. ``is_datacenter_ip`` is only
+    meaningful when an ASN resolver was supplied; otherwise it returns ``False``.
     """
 
-    def __init__(self, robots, machines):
+    def __init__(
+        self, robots, machines, datacenter_asns, allow_asns, asn_resolver=None
+    ):
         self._robots = robots
         self._machines = machines
+        self._datacenter_asns = datacenter_asns
+        self._allow_asns = allow_asns
+        self._asn_resolver = asn_resolver
 
     def is_robot(self, user_agent):
         """Determine if a user agent is a robot/crawler/spider."""
@@ -101,6 +165,27 @@ class Classifier:
         """Determine if a user agent is a robot or a machine."""
         return self.is_robot(user_agent) or self.is_machine(user_agent)
 
+    def is_browser(self, user_agent):
+        """Determine if a user agent claims to be an interactive web browser."""
+        return is_browser(user_agent)
+
+    def is_datacenter(self, asn):
+        """Determine if an ASN is a datacenter/hosting network (and not allow-listed)."""
+        if asn is None:
+            return False
+        asn = int(asn)
+        return asn in self._datacenter_asns and asn not in self._allow_asns
+
+    def is_datacenter_ip(self, ip):
+        """Determine if an IP belongs to a datacenter/hosting network.
+
+        Resolves the IP to an ASN with the configured resolver and applies
+        :meth:`is_datacenter`. Returns ``False`` when no resolver was supplied.
+        """
+        if not ip or self._asn_resolver is None:
+            return False
+        return self.is_datacenter(self._asn_resolver(ip))
+
 
 class ClassifierBuilder:
     """Fluent builder for a :class:`Classifier`.
@@ -112,6 +197,8 @@ class ClassifierBuilder:
     def __init__(self):
         self._cs_robots, self._ci_robots = [], []
         self._cs_machines, self._ci_machines = [], []
+        self._datacenter_asns, self._allow_asns = set(), set()
+        self._asn_resolver = None
 
     def robots(self, patterns, ignore_case=False):
         """Add robot patterns (case-sensitive unless ``ignore_case``)."""
@@ -121,6 +208,21 @@ class ClassifierBuilder:
     def machines(self, patterns, ignore_case=False):
         """Add machine patterns (case-sensitive unless ``ignore_case``)."""
         (self._ci_machines if ignore_case else self._cs_machines).extend(patterns)
+        return self
+
+    def datacenter_asns(self, asns):
+        """Add ASN numbers treated as datacenter/hosting networks."""
+        self._datacenter_asns.update(asns)
+        return self
+
+    def allow_asns(self, asns):
+        """Add ASN numbers exempt from datacenter classification."""
+        self._allow_asns.update(asns)
+        return self
+
+    def asn_resolver(self, resolver):
+        """Set the ``ip -> ASN`` resolver used by ``is_datacenter_ip``."""
+        self._asn_resolver = resolver
         return self
 
     def use(self, preset):
@@ -133,6 +235,9 @@ class ClassifierBuilder:
         return Classifier(
             _PatternSet(self._cs_robots, self._ci_robots),
             _PatternSet(self._cs_machines, self._ci_machines),
+            frozenset(self._datacenter_asns),
+            frozenset(self._allow_asns),
+            self._asn_resolver,
         )
 
 
@@ -157,7 +262,8 @@ def extended_preset(builder):
     Adds the crawler-user-agents patterns split by tag (HTTP libraries and
     browser-automation tools as machines, every other tag as robots), matched
     case-sensitively as that dataset intends, plus a curated list of non-browser
-    tools and CLIs the dataset does not cover, matched case-insensitively.
+    tools and CLIs the dataset does not cover, matched case-insensitively, and the
+    packaged datacenter ASN list with its allow list.
     """
     import crawleruseragents
 
@@ -168,6 +274,26 @@ def extended_preset(builder):
     builder.robots(robots)
     builder.machines(machines)
     builder.machines(package_patterns("machine_extra.txt"), ignore_case=True)
+    builder.datacenter_asns(package_asns("datacenter_asn.txt"))
+    builder.allow_asns(package_asns("datacenter_asn_allow.txt"))
+
+
+def maxminddb_resolver(path, cache_size=_ASN_CACHE_SIZE):
+    """Build an ``ip -> ASN`` resolver backed by a GeoLite2-ASN mmdb, cached.
+
+    Requires the ``asn`` extra (``maxminddb``). The mmdb is supplied by the
+    caller; it is never shipped with this package.
+    """
+    import maxminddb
+
+    reader = maxminddb.open_database(path)
+
+    @lru_cache(maxsize=cache_size)
+    def resolve(ip):
+        record = reader.get(ip) or {}
+        return record.get("autonomous_system_number")
+
+    return resolve
 
 
 #
@@ -211,10 +337,15 @@ __all__ = (
     "ClassifierBuilder",
     "counter_preset",
     "extended_preset",
+    "maxminddb_resolver",
     "default_classifier",
     "package_patterns",
+    "package_asns",
     "file_patterns",
+    "file_asns",
     "patterns_from",
+    "asns_from",
+    "is_browser",
     "is_machine",
     "is_robot",
     "is_robot_or_machine",

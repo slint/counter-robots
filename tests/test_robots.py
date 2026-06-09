@@ -15,6 +15,7 @@ from counter_robots import (
     counter_preset,
     extended_preset,
     file_patterns,
+    is_browser,
     is_machine,
     is_robot,
     is_robot_or_machine,
@@ -52,6 +53,26 @@ def test_is_robot_or_machine():
 def test_baseline_is_case_sensitive():
     """The COUNTER baseline matches case-sensitively, so CamelCase bots evade it."""
     assert is_robot("YisouSpider") is False
+
+
+@pytest.mark.parametrize(
+    "ua",
+    [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0",
+        # bare WebKit (older Safari) and Internet Explorer (Trident)
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+        "Mozilla/5.0 (Windows NT 10.0; Trident/7.0; rv:11.0) like Gecko",
+    ],
+)
+def test_is_browser_true(ua):
+    assert is_browser(ua) is True
+
+
+@pytest.mark.parametrize("ua", ["python-requests/2.31", "GDAL/3.12", ""])
+def test_is_browser_false(ua):
+    assert is_browser(ua) is False
 
 
 @pytest.fixture
@@ -100,6 +121,33 @@ def test_extended_preset_keeps_browsers(extended_classifier):
     )
     assert extended_classifier.is_robot(chrome) is False
     assert extended_classifier.is_machine(chrome) is False
+
+
+def test_is_datacenter(extended_classifier):
+    assert extended_classifier.is_datacenter(16509) is True  # AWS, generated list
+    assert extended_classifier.is_datacenter(714) is False  # Apple, allow-listed
+    assert extended_classifier.is_datacenter(3320) is False  # eyeball ISP, not listed
+    assert extended_classifier.is_datacenter(None) is False
+
+
+def test_is_datacenter_ip_with_resolver():
+    asn_by_ip = {"1.1.1.1": 16509, "2.2.2.2": 714, "3.3.3.3": 3320}
+    classifier = (
+        ClassifierBuilder()
+        .use(counter_preset)
+        .use(extended_preset)
+        .asn_resolver(lambda ip: asn_by_ip.get(ip))
+        .build()
+    )
+    assert classifier.is_datacenter_ip("1.1.1.1") is True  # AWS
+    assert classifier.is_datacenter_ip("2.2.2.2") is False  # Apple, allow-listed
+    assert classifier.is_datacenter_ip("3.3.3.3") is False  # eyeball ISP
+    assert classifier.is_datacenter_ip("9.9.9.9") is False  # unknown -> no ASN
+
+
+def test_is_datacenter_ip_without_resolver(extended_classifier):
+    """Without a resolver, ip-based datacenter detection is a no-op."""
+    assert extended_classifier.is_datacenter_ip("1.1.1.1") is False
 
 
 def test_external_file_via_builder(tmp_path):

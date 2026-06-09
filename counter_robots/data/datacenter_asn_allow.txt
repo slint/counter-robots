@@ -1,0 +1,3 @@
+# Allow list: ASNs never treated as datacenter even when a source lists them,
+# because they carry real browser users. One ASN per line; trailing comments allowed.
+714      # Apple (iCloud Private Relay egress)

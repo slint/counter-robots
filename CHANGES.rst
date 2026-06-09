@@ -26,6 +26,15 @@ Version 2026.6 (unreleased)
   ``machine_extra.txt`` of non-browser tools and CLIs it does not cover, matched
   case-insensitively.
 
+- feat: datacenter/hosting ASN classification. ``is_datacenter(asn)`` classifies
+  an ASN against a generated list (union of brianhama/bad-asn-list and PeeringDB
+  ``Content`` networks, refreshed by ``scripts/update-asn-list.py``) minus an allow
+  list (Apple iCloud Private Relay). ``is_browser(ua)`` exposes a conservative
+  browser-UA heuristic. ``is_datacenter_ip(ip)`` resolves IP to ASN through a
+  resolver supplied to the builder; ``maxminddb_resolver(path)`` (the ``asn`` extra)
+  builds one over a GeoLite2-ASN mmdb with an in-memory cache. The library reads no
+  config and ships no geo database.
+
 Version 2025.11 (released on 2025-11-04)
 
 - chore(setup): update dependencies
