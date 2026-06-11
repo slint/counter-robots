@@ -11,6 +11,11 @@ Changes
 
 Version 2026.6 (unreleased)
 
+- fix: keep consumer ISPs and universities out of the datacenter list. open-bot-list
+  files some ASNs under both a datacenter and the isp/education category; those are
+  now subtracted from its contribution. A handful of bad-asn-list false positives that
+  PeeringDB confirms are eyeball or academic networks are added to the allow list.
+
 - feat: ``extended_preset`` also flags the AI crawlers from the ai-robots-txt list,
   refreshed into ``ai_robots.txt`` by ``scripts/update-lists.py`` and matched
   case-insensitively as robots.

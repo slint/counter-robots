@@ -12,8 +12,9 @@ Writes ``counter_robots/data/datacenter_asn.txt`` from the union of:
 
 - brianhama/bad-asn-list (hosting/datacenter ASNs),
 - PeeringDB networks registered with ``info_type`` of ``Content``, and
-- O-X-L/open-bot-list ASNs categorized as hosting, cloud or cdn. The other
-  categories (isp/education/proxy/vpn) carry human traffic, so they are skipped.
+- O-X-L/open-bot-list ASNs categorized as hosting, cloud or cdn, minus any the
+  same source also lists under isp or education. The other categories carry human
+  traffic, so they are skipped.
 
 All are fetched anonymously. The hand-maintained ``datacenter_asn_allow.txt`` is
 left untouched.
@@ -43,6 +44,9 @@ OPEN_BOT_LIST_BASE = (
     "https://raw.githubusercontent.com/O-X-L/open-bot-list/latest/matches/asn"
 )
 OPEN_BOT_LIST_CATEGORIES = ("hosting", "cloud", "cdn")
+# open-bot-list occasionally files one ASN under both a datacenter and a human
+# category; these are subtracted so a consumer ISP is never flagged as datacenter.
+OPEN_BOT_LIST_HUMAN_CATEGORIES = ("isp", "education")
 
 
 def _data_path(filename):
@@ -71,17 +75,29 @@ def _peeringdb_asns():
     }
 
 
-def _open_bot_list_asns():
+def _open_bot_list_category(category):
+    reader = csv.DictReader(
+        io.StringIO(
+            _fetch("{}/{}.csv".format(OPEN_BOT_LIST_BASE, category)).decode("utf-8")
+        )
+    )
     asns = set()
-    for category in OPEN_BOT_LIST_CATEGORIES:
-        url = "{}/{}.csv".format(OPEN_BOT_LIST_BASE, category)
-        reader = csv.DictReader(io.StringIO(_fetch(url).decode("utf-8")))
-        for row in reader:
-            # The asn cell may pipe-delimit several ASNs for one organization.
-            for part in (row.get("asn") or "").split("|"):
-                if part.strip().isdigit():
-                    asns.add(int(part.strip()))
+    for row in reader:
+        # The asn cell may pipe-delimit several ASNs for one organization.
+        for part in (row.get("asn") or "").split("|"):
+            if part.strip().isdigit():
+                asns.add(int(part.strip()))
     return asns
+
+
+def _open_bot_list_asns():
+    datacenter = set().union(
+        *(_open_bot_list_category(c) for c in OPEN_BOT_LIST_CATEGORIES)
+    )
+    human = set().union(
+        *(_open_bot_list_category(c) for c in OPEN_BOT_LIST_HUMAN_CATEGORIES)
+    )
+    return datacenter - human
 
 
 def main():
