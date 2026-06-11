@@ -32,8 +32,9 @@ Version 2026.6 (unreleased)
   case-insensitively.
 
 - feat: datacenter/hosting ASN classification. ``is_datacenter(asn)`` classifies
-  an ASN against a generated list (union of brianhama/bad-asn-list and PeeringDB
-  ``Content`` networks, refreshed by ``scripts/update-asn-list.py``) minus an allow
+  an ASN against a generated list (union of brianhama/bad-asn-list, PeeringDB
+  ``Content`` networks, and O-X-L/open-bot-list hosting/cloud/cdn ASNs, refreshed by
+  ``scripts/update-asn-list.py``) minus an allow
   list (Apple iCloud Private Relay). ``is_browser(ua)`` exposes a conservative
   browser-UA heuristic. ``is_datacenter_ip(ip)`` resolves IP to ASN through a
   resolver supplied to the builder; ``maxminddb_resolver(path)`` (the ``asn`` extra)
