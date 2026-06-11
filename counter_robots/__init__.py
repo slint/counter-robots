@@ -140,11 +140,34 @@ class ClassifierBuilder:
 # Presets
 #
 
+# crawler-user-agents tags that denote a machine (script/library) rather than a
+# crawler; every other tag is treated as a robot.
+_MACHINE_TAGS = frozenset({"http-library", "browser-automation"})
+
 
 def counter_preset(builder):
     """Generic COUNTER baseline: atmire robots and Make-Data-Count machines."""
     builder.robots(package_patterns("robot.txt"))
     builder.machines(package_patterns("machine.txt"))
+
+
+def extended_preset(builder):
+    """Extended detection from the maintained crawler-user-agents dataset.
+
+    Adds the crawler-user-agents patterns split by tag (HTTP libraries and
+    browser-automation tools as machines, every other tag as robots), matched
+    case-sensitively as that dataset intends, plus a curated list of non-browser
+    tools and CLIs the dataset does not cover, matched case-insensitively.
+    """
+    import crawleruseragents
+
+    robots, machines = [], []
+    for entry in crawleruseragents.CRAWLER_USER_AGENTS_DATA:
+        bucket = machines if _MACHINE_TAGS.intersection(entry["tags"]) else robots
+        bucket.append(entry["pattern"])
+    builder.robots(robots)
+    builder.machines(machines)
+    builder.machines(package_patterns("machine_extra.txt"), ignore_case=True)
 
 
 #
@@ -187,6 +210,7 @@ __all__ = (
     "Classifier",
     "ClassifierBuilder",
     "counter_preset",
+    "extended_preset",
     "default_classifier",
     "package_patterns",
     "file_patterns",

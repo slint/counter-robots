@@ -19,6 +19,13 @@ Version 2026.6 (unreleased)
   ``is_robot_or_machine`` remain as a backwards-compatible default classifier built
   from ``counter_preset``.
 
+- feat: ``extended_preset`` adds detection from the maintained
+  ``crawler-user-agents`` dataset (a new dependency), split by tag so HTTP
+  libraries and browser-automation tools are machines and every other tag is a
+  robot (case-sensitive, as that dataset intends), plus a curated
+  ``machine_extra.txt`` of non-browser tools and CLIs it does not cover, matched
+  case-insensitively.
+
 Version 2025.11 (released on 2025-11-04)
 
 - chore(setup): update dependencies
