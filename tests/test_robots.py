@@ -30,10 +30,29 @@ def test_version():
 
 
 def test_is_robot():
-    machine_ua = "PostmanRuntime/7.30.0"
+    # Wget is in both lists; machine wins, so it is not a robot (issue #15).
+    machine_ua = "Wget/1.14 (linux-gnu)"
     robot_ua = "AdsBot-Google (+http://www.google.com/adsbot.html)"
     assert is_robot(machine_ua) is not True
     assert is_robot(robot_ua) is True
+
+
+@pytest.mark.parametrize(
+    "ua",
+    [
+        "Wget/1.14 (linux-gnu)",
+        "curl/8.5.0",
+        "python-requests/2.31.0",
+        "urllib/3.10",
+        "aria2/1.36.0",
+        "PycURL/7.45.2",
+    ],
+)
+def test_machine_takes_precedence_over_robot(ua):
+    """User agents in both the robot and machine lists are machines (issue #15)."""
+    assert is_machine(ua) is True
+    assert is_robot(ua) is False
+    assert is_robot_or_machine(ua) is True  # still non-human, just not a robot
 
 
 def test_is_machine():

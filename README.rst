@@ -72,6 +72,10 @@ COUNTER baseline (the Atmire robot list and the Make-Data-Count machine list):
         "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
     )                                                            # True
 
+The two lists overlap (``wget``, ``curl``, ``python``, ...). A user agent matched
+by both is a machine, not a robot, so it is counted and reported separately rather
+than excluded with the robots.
+
 Composable classifier
 ----------------------
 

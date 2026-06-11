@@ -11,6 +11,11 @@ Changes
 
 Version 2026.6 (unreleased)
 
+- fix: machine takes precedence over robot. The COUNTER robot and Make-Data-Count
+  machine lists overlap heavily (wget, curl, python, ...); a user agent matched by
+  both is now classified as a machine, not a robot, so machine access is counted
+  and reported separately instead of being excluded with the robots (issue #15).
+
 - refactor: composable, class-based API. ``Classifier`` (built by
   ``ClassifierBuilder``) exposes ``is_robot`` / ``is_machine`` /
   ``is_robot_or_machine``. Lists are added as presets, callables that add sources

@@ -147,6 +147,7 @@ class Classifier:
     def __init__(
         self, robots, machines, datacenter_asns, allow_asns, asn_resolver=None
     ):
+        """Initialize from compiled pattern sets and ASN sets (use the builder)."""
         self._robots = robots
         self._machines = machines
         self._datacenter_asns = datacenter_asns
@@ -154,8 +155,16 @@ class Classifier:
         self._asn_resolver = asn_resolver
 
     def is_robot(self, user_agent):
-        """Determine if a user agent is a robot/crawler/spider."""
-        return self._robots.matches(user_agent)
+        """Determine if a user agent is a robot/crawler/spider.
+
+        Machine takes precedence: the COUNTER robot and Make-Data-Count machine
+        lists overlap (wget, curl, python, ...), but machine access is counted and
+        reported separately while robots are excluded, so a user agent in both is
+        a machine, not a robot.
+        """
+        return self._robots.matches(user_agent) and not self._machines.matches(
+            user_agent
+        )
 
     def is_machine(self, user_agent):
         """Determine if a user agent is a machine (script, library, tool)."""
@@ -195,6 +204,7 @@ class ClassifierBuilder:
     """
 
     def __init__(self):
+        """Initialize an empty builder."""
         self._cs_robots, self._ci_robots = [], []
         self._cs_machines, self._ci_machines = [], []
         self._datacenter_asns, self._allow_asns = set(), set()
