@@ -11,6 +11,10 @@ Changes
 
 Version 2026.6 (unreleased)
 
+- feat: ``extended_preset`` also flags the AI crawlers from the ai-robots-txt list,
+  refreshed into ``ai_robots.txt`` by ``scripts/update-lists.py`` and matched
+  case-insensitively as robots.
+
 - fix: machine takes precedence over robot. The COUNTER robot and Make-Data-Count
   machine lists overlap heavily (wget, curl, python, ...); a user agent matched by
   both is now classified as a machine, not a robot, so machine access is counted

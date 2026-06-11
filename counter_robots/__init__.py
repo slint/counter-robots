@@ -267,13 +267,14 @@ def counter_preset(builder):
 
 
 def extended_preset(builder):
-    """Extended detection from the maintained crawler-user-agents dataset.
+    """Extended detection beyond the COUNTER baseline.
 
     Adds the crawler-user-agents patterns split by tag (HTTP libraries and
     browser-automation tools as machines, every other tag as robots), matched
-    case-sensitively as that dataset intends, plus a curated list of non-browser
-    tools and CLIs the dataset does not cover, matched case-insensitively, and the
-    packaged datacenter ASN list with its allow list.
+    case-sensitively as that dataset intends; the ai-robots-txt AI-crawler names as
+    robots, matched case-insensitively; a curated list of non-browser tools and CLIs
+    the datasets do not cover, also case-insensitive; and the packaged datacenter ASN
+    list with its allow list.
     """
     import crawleruseragents
 
@@ -282,6 +283,7 @@ def extended_preset(builder):
         bucket = machines if _MACHINE_TAGS.intersection(entry["tags"]) else robots
         bucket.append(entry["pattern"])
     builder.robots(robots)
+    builder.robots(package_patterns("ai_robots.txt"), ignore_case=True)
     builder.machines(machines)
     builder.machines(package_patterns("machine_extra.txt"), ignore_case=True)
     builder.datacenter_asns(package_asns("datacenter_asn.txt"))

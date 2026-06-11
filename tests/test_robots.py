@@ -117,6 +117,20 @@ def test_extended_preset_robots(extended_classifier, ua):
 @pytest.mark.parametrize(
     "ua",
     [
+        "Crawlspace/1.0",
+        "QuillBot/2.0",
+        "Andibot",
+        "bedrockbot/1.0",
+    ],
+)
+def test_extended_preset_ai_crawlers(extended_classifier, ua):
+    """ai-robots-txt AI crawlers, beyond what crawler-user-agents covers."""
+    assert extended_classifier.is_robot(ua) is True
+
+
+@pytest.mark.parametrize(
+    "ua",
+    [
         "python-requests/2.31",  # crawler-user-agents http-library
         "Python/3.10 aiohttp/3.10.5",
         "GDAL/3.12.1",  # curated tool list
